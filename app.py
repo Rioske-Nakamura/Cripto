@@ -1,0 +1,182 @@
+import tkinter as tk
+from tkinter import ttk
+from tkcalendar import DateEntry
+import requests
+from datetime import datetime, time
+import matplotlib.pyplot as plt
+import pandas as pd
+import difflib
+
+# -------------------------
+# Lista dinâmica com Entry + Listbox
+# -------------------------
+class AutocompleteEntry(tk.Entry):
+    def __init__(self, lista, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.lista = lista
+        self.var = self["textvariable"] = tk.StringVar()
+        self.var.trace("w", self.changed)
+        self.bind("<Down>", self.move_down)
+        self.listbox = None
+
+    def changed(self, *args):
+        value = self.var.get().lower()
+        if value == '':
+            self.hide_listbox()
+        else:
+            matches = difflib.get_close_matches(value, self.lista, n=10, cutoff=0.1)
+            self.show_listbox(matches)
+
+    def show_listbox(self, matches):
+        if self.listbox:
+            self.listbox.destroy()
+        self.listbox = tk.Listbox(self.master, height=6)
+        self.listbox.bind("<Double-Button-1>", self.selection)
+        self.listbox.bind("<Right>", self.selection)
+
+        for m in matches:
+            self.listbox.insert(tk.END, m)
+
+        self.listbox.place(x=self.winfo_x(), y=self.winfo_y() + self.winfo_height())
+
+    def hide_listbox(self):
+        if self.listbox:
+            self.listbox.destroy()
+            self.listbox = None
+
+    def selection(self, event):
+        if self.listbox:
+            selection = self.listbox.get(tk.ACTIVE)
+            self.var.set(selection)
+            self.hide_listbox()
+
+    def move_down(self, event):
+        if self.listbox:
+            self.listbox.focus_set()
+            self.listbox.selection_set(0)
+
+# -------------------------
+# API & Lógica
+# -------------------------
+def buscar_moedas():
+    url = "https://api.coingecko.com/api/v3/coins/list"
+    r = requests.get(url)
+    moedas = r.json()
+    return {f"{m['name']} ({m['symbol']})": m['id'] for m in moedas}
+
+def pegar_dados(moeda, moeda_destino, inicio, fim):
+    inicio_dt = datetime.combine(inicio, time.min)
+    fim_dt = datetime.combine(fim, time.max)
+    ts_inicio = int(inicio_dt.timestamp())
+    ts_fim = int(fim_dt.timestamp())
+
+    url = f"https://api.coingecko.com/api/v3/coins/{moeda}/market_chart/range"
+    params = {"vs_currency": moeda_destino, "from": ts_inicio, "to": ts_fim}
+    r = requests.get(url, params=params)
+    if r.status_code != 200:
+        return None
+    dados = r.json()
+    df = pd.DataFrame(dados["prices"], columns=["timestamp", "price"])
+    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+    df.set_index("timestamp", inplace=True)
+    return df
+
+def pegar_valor_atual(moeda_id, moeda_base):
+    url = f"https://api.coingecko.com/api/v3/simple/price"
+    params = {"ids": moeda_id, "vs_currencies": moeda_base}
+    r = requests.get(url, params=params)
+    try:
+        return r.json()[moeda_id][moeda_base]
+    except:
+        return None
+
+def calcular_recomendacao(df):
+    if df is None or df.empty:
+        return 0
+    variacao = (df["price"].iloc[-1] - df["price"].iloc[0]) / df["price"].iloc[0]
+    volatilidade = df["price"].std()
+    score = 0
+    score += max(0, min(50, variacao * 200))
+    score += max(0, min(50, 5 / (volatilidade + 0.001)))
+    return round(min(100, score))
+
+# -------------------------
+# Interface Principal
+# -------------------------
+def analisar():
+    moeda1_nome = moeda1_entry.get()
+    moeda2_nome = moeda2_entry.get()
+    moeda_base = moeda_base_var.get().lower()
+
+    if moeda1_nome not in moedas_dict:
+        resultado_label.config(text="Moeda 1 inválida.")
+        return
+
+    moeda1_id = moedas_dict[moeda1_nome]
+    moeda2_id = moedas_dict.get(moeda2_nome, None)
+
+    inicio = data_inicio.get_date()
+    fim = data_fim.get_date()
+
+    df1 = pegar_dados(moeda1_id, moeda_base, inicio, fim)
+    df2 = pegar_dados(moeda2_id, moeda_base, inicio, fim) if moeda2_id else None
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(df1.index, df1["price"], label=moeda1_nome, color="blue")
+    if df2 is not None:
+        plt.plot(df2.index, df2["price"], label=moeda2_nome, color="green")
+    plt.title(f"Evolução ({moeda_base.upper()})")
+    plt.xlabel("Data")
+    plt.ylabel(f"Preço ({moeda_base.upper()})")
+    plt.grid()
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    score1 = calcular_recomendacao(df1)
+    valor1 = pegar_valor_atual(moeda1_id, moeda_base)
+    texto = f"{moeda1_nome}: {score1}/100\nValor atual: {moeda_base.upper()} {valor1:,.2f}" if valor1 else f"{moeda1_nome}: {score1}/100"
+
+    if df2 is not None and moeda2_id:
+        score2 = calcular_recomendacao(df2)
+        valor2 = pegar_valor_atual(moeda2_id, moeda_base)
+        texto += f"\n\n{moeda2_nome}: {score2}/100\nValor atual: {moeda_base.upper()} {valor2:,.2f}" if valor2 else f"\n\n{moeda2_nome}: {score2}/100"
+
+    resultado_label.config(text=texto)
+
+# -------------------------
+# Inicializa Janela
+# -------------------------
+root = tk.Tk()
+root.title("Analisador de Criptomoedas")
+root.geometry("560x400")
+
+moedas_dict = buscar_moedas()
+moedas_formatadas = sorted(moedas_dict.keys())
+
+# Labels e Inputs
+moeda1_entry = AutocompleteEntry(moedas_formatadas, root, width=40)
+moeda2_entry = AutocompleteEntry(moedas_formatadas, root, width=40)
+moeda_base_var = ttk.Combobox(root, values=["brl", "usd", "eur"], width=10)
+moeda_base_var.set("brl")
+
+# Layout
+labels = ["Moeda 1:", "Moeda 2 (opcional):", "Converter para:", "Data Início:", "Data Fim:"]
+for i, texto in enumerate(labels):
+    tk.Label(root, text=texto).grid(row=i, column=0, padx=10, pady=6, sticky='e')
+
+moeda1_entry.grid(row=0, column=1)
+moeda2_entry.grid(row=1, column=1)
+moeda_base_var.grid(row=2, column=1, sticky="w")
+
+data_inicio = DateEntry(root, width=12, background='darkblue', foreground='white', borderwidth=2)
+data_inicio.grid(row=3, column=1, sticky="w")
+data_fim = DateEntry(root, width=12, background='darkblue', foreground='white', borderwidth=2)
+data_fim.grid(row=4, column=1, sticky="w")
+
+# Botão e resultado
+ttk.Button(root, text="Analisar", command=analisar).grid(row=5, column=0, columnspan=2, pady=15)
+resultado_label = tk.Label(root, text="", font=("Arial", 11), justify="left")
+resultado_label.grid(row=6, column=0, columnspan=2, padx=10, pady=10)
+
+root.mainloop()
