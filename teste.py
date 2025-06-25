@@ -6,6 +6,12 @@ from datetime import datetime, time
 import matplotlib.pyplot as plt
 import pandas as pd
 import difflib
+import locale
+
+# -------------------------
+# Locale brasileiro para datas
+# -------------------------
+locale.setlocale(locale.LC_ALL, 'pt_BR')
 
 # -------------------------
 # Lista dinâmica com Entry + Listbox
@@ -30,7 +36,7 @@ class AutocompleteEntry(tk.Entry):
     def show_listbox(self, matches):
         if self.listbox:
             self.listbox.destroy()
-        self.listbox = tk.Listbox(self.master, height=6)
+        self.listbox = tk.Listbox(self.master, height=6, bg="#eeeeee", fg="#333", font=("Arial", 10), relief="flat")
         self.listbox.bind("<Double-Button-1>", self.selection)
         self.listbox.bind("<Right>", self.selection)
 
@@ -60,9 +66,18 @@ class AutocompleteEntry(tk.Entry):
 # -------------------------
 def buscar_moedas():
     url = "https://api.coingecko.com/api/v3/coins/list"
-    r = requests.get(url)
-    moedas = r.json()
-    return {f"{m['name']} ({m['symbol']})": m['id'] for m in moedas}
+    try:
+        r = requests.get(url, timeout=10)
+        r.raise_for_status()
+        moedas = r.json()
+        if isinstance(moedas, list):
+            return {f"{m['name']} ({m['symbol']})": m['id'] for m in moedas}
+        else:
+            print("Resposta inesperada da API:", moedas)
+            return {}
+    except Exception as e:
+        print("Erro ao buscar moedas:", e)
+        return {}
 
 def pegar_dados(moeda, moeda_destino, inicio, fim):
     inicio_dt = datetime.combine(inicio, time.min)
@@ -103,6 +118,46 @@ def calcular_recomendacao(df):
 # -------------------------
 # Interface Principal
 # -------------------------
+root = tk.Tk()
+root.title("Analisador de Criptomoedas")
+root.geometry("640x480")
+root.configure(bg="#2c2c2c")
+
+style = ttk.Style()
+style.theme_use("clam")
+style.configure("TLabel", background="#2c2c2c", foreground="white", font=("Segoe UI", 10))
+style.configure("TButton", font=("Segoe UI", 10), padding=6)
+style.configure("TCombobox", padding=6)
+
+root.option_add("*TCombobox*Listbox.background", "#f0f0f0")
+root.option_add("*TCombobox*Listbox.foreground", "black")
+
+moedas_dict = buscar_moedas()
+moedas_formatadas = sorted(moedas_dict.keys())
+
+campo_padrao = {"bg": "#eeeeee", "font": ("Segoe UI", 10), "relief": "flat", "highlightthickness": 1, "highlightbackground": "#888"}
+
+moeda1_entry = AutocompleteEntry(moedas_formatadas, root, width=40, **campo_padrao)
+moeda2_entry = AutocompleteEntry(moedas_formatadas, root, width=40, **campo_padrao)
+moeda_base_var = ttk.Combobox(root, values=["brl", "usd", "eur"], width=10, font=("Segoe UI", 10))
+moeda_base_var.set("brl")
+
+labels = ["Moeda 1:", "Moeda 2 (opcional):", "Converter para:", "Data Início:", "Data Fim:"]
+for i, texto in enumerate(labels):
+    ttk.Label(root, text=texto).grid(row=i, column=0, padx=12, pady=8, sticky='e')
+
+moeda1_entry.grid(row=0, column=1, padx=10, pady=5)
+moeda2_entry.grid(row=1, column=1, padx=10, pady=5)
+moeda_base_var.grid(row=2, column=1, padx=10, pady=5, sticky="w")
+
+data_inicio = DateEntry(root, width=12, background='darkblue', foreground='white', borderwidth=0,
+                        locale='pt_BR', date_pattern='dd/MM/yyyy')
+data_inicio.grid(row=3, column=1, padx=10, pady=5, sticky="w")
+
+data_fim = DateEntry(root, width=12, background='darkblue', foreground='white', borderwidth=0,
+                     locale='pt_BR', date_pattern='dd/MM/yyyy')
+data_fim.grid(row=4, column=1, padx=10, pady=5, sticky="w")
+
 def analisar():
     moeda1_nome = moeda1_entry.get()
     moeda2_nome = moeda2_entry.get()
@@ -113,18 +168,24 @@ def analisar():
         return
 
     moeda1_id = moedas_dict[moeda1_nome]
-    moeda2_id = moedas_dict.get(moeda2_nome, None)
 
-    inicio = data_inicio.get_date()
-    fim = data_fim.get_date()
+    if moeda2_nome and moeda2_nome in moedas_dict:
+        moeda2_id = moedas_dict[moeda2_nome]
+        df2 = pegar_dados(moeda2_id, moeda_base, data_inicio.get_date(), data_fim.get_date())
+    else:
+        moeda2_id = None
+        df2 = None
 
-    df1 = pegar_dados(moeda1_id, moeda_base, inicio, fim)
-    df2 = pegar_dados(moeda2_id, moeda_base, inicio, fim) if moeda2_id else None
+    df1 = pegar_dados(moeda1_id, moeda_base, data_inicio.get_date(), data_fim.get_date())
 
     plt.figure(figsize=(10, 5))
     plt.plot(df1.index, df1["price"], label=moeda1_nome, color="blue")
-    if df2 is not None:
+
+    if df2 is not None and not df2.empty:
         plt.plot(df2.index, df2["price"], label=moeda2_nome, color="green")
+    else:
+        print(f"Aviso: Sem dados para {moeda2_nome} ou moeda inválida.")
+
     plt.title(f"Evolução ({moeda_base.upper()})")
     plt.xlabel("Data")
     plt.ylabel(f"Preço ({moeda_base.upper()})")
@@ -144,39 +205,11 @@ def analisar():
 
     resultado_label.config(text=texto)
 
-# -------------------------
-# Inicializa Janela
-# -------------------------
-root = tk.Tk()
-root.title("Analisador de Criptomoedas")
-root.geometry("560x400")
-
-moedas_dict = buscar_moedas()
-moedas_formatadas = sorted(moedas_dict.keys())
-
-# Labels e Inputs
-moeda1_entry = AutocompleteEntry(moedas_formatadas, root, width=40)
-moeda2_entry = AutocompleteEntry(moedas_formatadas, root, width=40)
-moeda_base_var = ttk.Combobox(root, values=["brl", "usd", "eur"], width=10)
-moeda_base_var.set("brl")
-
-# Layout
-labels = ["Moeda 1:", "Moeda 2 (opcional):", "Converter para:", "Data Início:", "Data Fim:"]
-for i, texto in enumerate(labels):
-    tk.Label(root, text=texto).grid(row=i, column=0, padx=10, pady=6, sticky='e')
-
-moeda1_entry.grid(row=0, column=1)
-moeda2_entry.grid(row=1, column=1)
-moeda_base_var.grid(row=2, column=1, sticky="w")
-
-data_inicio = DateEntry(root, width=12, background='darkblue', foreground='white', borderwidth=2)
-data_inicio.grid(row=3, column=1, sticky="w")
-data_fim = DateEntry(root, width=12, background='darkblue', foreground='white', borderwidth=2)
-data_fim.grid(row=4, column=1, sticky="w")
-
 # Botão e resultado
-ttk.Button(root, text="Analisar", command=analisar).grid(row=5, column=0, columnspan=2, pady=15)
-resultado_label = tk.Label(root, text="", font=("Arial", 11), justify="left")
-resultado_label.grid(row=6, column=0, columnspan=2, padx=10, pady=10)
+botao = ttk.Button(root, text="Analisar", command=analisar)
+botao.grid(row=5, column=0, columnspan=2, pady=20)
+
+resultado_label = tk.Label(root, text="", font=("Segoe UI", 11), justify="left", bg="#2c2c2c", fg="white")
+resultado_label.grid(row=6, column=0, columnspan=2, padx=15, pady=10, sticky="w")
 
 root.mainloop()
