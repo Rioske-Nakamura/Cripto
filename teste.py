@@ -36,7 +36,7 @@ class AutocompleteEntry(tk.Entry):
     def show_listbox(self, matches):
         if self.listbox:
             self.listbox.destroy()
-        self.listbox = tk.Listbox(self.master, height=6, bg="#eeeeee", fg="#333", font=("Arial", 10), relief="flat")
+        self.listbox = tk.Listbox(self.master, height=6, bg="#eeeeee", fg="#333", font=("Segoe UI", 10), relief="flat", bd=0, highlightthickness=0)
         self.listbox.bind("<Double-Button-1>", self.selection)
         self.listbox.bind("<Right>", self.selection)
 
@@ -120,14 +120,14 @@ def calcular_recomendacao(df):
 # -------------------------
 root = tk.Tk()
 root.title("Analisador de Criptomoedas")
-root.geometry("640x480")
-root.configure(bg="#2c2c2c")
+root.geometry("700x520")
+root.configure(bg="#1e1e1e")
 
 style = ttk.Style()
 style.theme_use("clam")
-style.configure("TLabel", background="#2c2c2c", foreground="white", font=("Segoe UI", 10))
-style.configure("TButton", font=("Segoe UI", 10), padding=6)
-style.configure("TCombobox", padding=6)
+style.configure("TLabel", background="#1e1e1e", foreground="white", font=("Segoe UI", 11))
+style.configure("TButton", font=("Segoe UI", 10, "bold"), padding=6, relief="flat")
+style.configure("TCombobox", padding=6, relief="flat")
 
 root.option_add("*TCombobox*Listbox.background", "#f0f0f0")
 root.option_add("*TCombobox*Listbox.foreground", "black")
@@ -135,7 +135,7 @@ root.option_add("*TCombobox*Listbox.foreground", "black")
 moedas_dict = buscar_moedas()
 moedas_formatadas = sorted(moedas_dict.keys())
 
-campo_padrao = {"bg": "#eeeeee", "font": ("Segoe UI", 10), "relief": "flat", "highlightthickness": 1, "highlightbackground": "#888"}
+campo_padrao = {"bg": "#eeeeee", "font": ("Segoe UI", 10), "relief": "flat", "highlightthickness": 1, "highlightbackground": "#555", "bd": 1}
 
 moeda1_entry = AutocompleteEntry(moedas_formatadas, root, width=40, **campo_padrao)
 moeda2_entry = AutocompleteEntry(moedas_formatadas, root, width=40, **campo_padrao)
@@ -146,15 +146,15 @@ labels = ["Moeda 1:", "Moeda 2 (opcional):", "Converter para:", "Data Início:",
 for i, texto in enumerate(labels):
     ttk.Label(root, text=texto).grid(row=i, column=0, padx=12, pady=8, sticky='e')
 
-moeda1_entry.grid(row=0, column=1, padx=10, pady=5)
-moeda2_entry.grid(row=1, column=1, padx=10, pady=5)
+moeda1_entry.grid(row=0, column=1, padx=10, pady=5, ipady=3)
+moeda2_entry.grid(row=1, column=1, padx=10, pady=5, ipady=3)
 moeda_base_var.grid(row=2, column=1, padx=10, pady=5, sticky="w")
 
-data_inicio = DateEntry(root, width=12, background='darkblue', foreground='white', borderwidth=0,
+data_inicio = DateEntry(root, width=12, background='#444', foreground='white', borderwidth=0,
                         locale='pt_BR', date_pattern='dd/MM/yyyy')
 data_inicio.grid(row=3, column=1, padx=10, pady=5, sticky="w")
 
-data_fim = DateEntry(root, width=12, background='darkblue', foreground='white', borderwidth=0,
+data_fim = DateEntry(root, width=12, background='#444', foreground='white', borderwidth=0,
                      locale='pt_BR', date_pattern='dd/MM/yyyy')
 data_fim.grid(row=4, column=1, padx=10, pady=5, sticky="w")
 
@@ -179,10 +179,10 @@ def analisar():
     df1 = pegar_dados(moeda1_id, moeda_base, data_inicio.get_date(), data_fim.get_date())
 
     plt.figure(figsize=(10, 5))
-    plt.plot(df1.index, df1["price"], label=moeda1_nome, color="blue")
+    plt.plot(df1.index, df1["price"], label=moeda1_nome, color="#00bfff")
 
     if df2 is not None and not df2.empty:
-        plt.plot(df2.index, df2["price"], label=moeda2_nome, color="green")
+        plt.plot(df2.index, df2["price"], label=moeda2_nome, color="#32cd32")
     else:
         print(f"Aviso: Sem dados para {moeda2_nome} ou moeda inválida.")
 
@@ -205,11 +205,10 @@ def analisar():
 
     resultado_label.config(text=texto)
 
-# Botão e resultado
 botao = ttk.Button(root, text="Analisar", command=analisar)
 botao.grid(row=5, column=0, columnspan=2, pady=20)
 
-resultado_label = tk.Label(root, text="", font=("Segoe UI", 11), justify="left", bg="#2c2c2c", fg="white")
+resultado_label = tk.Label(root, text="", font=("Segoe UI", 11), justify="left", bg="#1e1e1e", fg="white")
 resultado_label.grid(row=6, column=0, columnspan=2, padx=15, pady=10, sticky="w")
 
 root.mainloop()
