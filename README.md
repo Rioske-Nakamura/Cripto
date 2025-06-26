@@ -17,11 +17,11 @@ Este é um aplicativo de interface gráfica feito em Python com `Tkinter` para a
 
 ### Tela principal:
 
-![Tela principal](/Cripto-main/img/figura.png)
+![Tela principal](/img/figura.png)
 
 ### Exemplo de gráfico gerado:
 
-![Gráfico de exemplo](/Cripto-main/img/Figure_1.png)
+![Gráfico de exemplo](/img/Figure_1.png)
 
 ## ⚙️ Tecnologias Utilizadas
 
