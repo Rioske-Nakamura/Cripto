@@ -169,7 +169,7 @@ def analisar():
 # Inicializa Janela
 # -------------------------
 root = tk.Tk()
-root.title("Analisador de Criptomoedas")
+root.title("Analisador de putas")
 root.geometry("560x400")
 
 moedas_dict = buscar_moedas()
