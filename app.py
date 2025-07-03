@@ -11,7 +11,16 @@ import locale
 # -------------------------
 # Locale brasileiro para datas
 # -------------------------
-locale.setlocale(locale.LC_ALL, 'pt_BR')
+import locale
+import platform
+
+try:
+    if platform.system() == "Windows":
+        locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil.1252')  # Windows
+    else:
+        locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')  # Linux
+except locale.Error:
+    print("Locale não disponível. Continuando com padrão.")
 
 # -------------------------
 # Lista dinâmica com Entry + Listbox
