@@ -8,6 +8,10 @@ import pandas as pd
 import difflib
 import locale
 
+
+
+# sreamlit
+
 # -------------------------
 # Locale brasileiro para datas
 # -------------------------
@@ -169,7 +173,7 @@ def analisar():
 # Inicializa Janela
 # -------------------------
 root = tk.Tk()
-root.title("Analisador de putas")
+root.title("Analisador de Moedas")
 root.geometry("560x400")
 
 moedas_dict = buscar_moedas()
@@ -200,9 +204,11 @@ data_fim = DateEntry(root, width=12, background='darkblue',
                      locale='pt_BR', date_pattern='dd/MM/yyyy')
 data_fim.grid(row=4, column=1, sticky="w")
 
-# Botão e resultado
+# Botão Ae resultado
 ttk.Button(root, text="Analisar", command=analisar).grid(row=5, column=0, columnspan=2, pady=15)
 resultado_label = tk.Label(root, text="", font=("Arial", 11), justify="left")
 resultado_label.grid(row=6, column=0, columnspan=2, padx=10, pady=10)
 
 root.mainloop()
+
+
